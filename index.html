@@ -182,6 +182,7 @@
         let targetBearing = 0;
         let currentStore = null;
         let smoothedUserHeading = null;
+        let lastVibrationTime = 0;
         const SMOOTHING_FACTOR = 0.15; // Adjust (0.01 to 1.0) for more/less smoothing
 
         startBtn.addEventListener('click', async () => {
@@ -338,6 +339,18 @@
 
             let pointerAngle = targetBearing - smoothedUserHeading;
             arrow.style.transform = `rotate(${pointerAngle}deg)`;
+
+            // Haptic Feedback: Trigger a pulse when aligned with the target indicator (within 5 degrees)
+            const normalizedDiff = ((pointerAngle + 180) % 360 + 360) % 360 - 180;
+            if (Math.abs(normalizedDiff) < 5) {
+                const now = Date.now();
+                if (now - lastVibrationTime > 1000) { // Pulse at most once per second
+                    if (navigator.vibrate) {
+                        navigator.vibrate(40); // 40ms subtle pulse
+                    }
+                    lastVibrationTime = now;
+                }
+            }
         }
     </script>
 </body>
