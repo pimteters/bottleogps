@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Liquor Compass</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #141436;
+            text-align: center;
+        }
+        #compass-container {
+            margin-top: 20px;
+            display: none; /* Hidden until we have data */
+        }
+        /* The arrow we will rotate */
+        #arrow {
+            font-size: 100px;
+            transition: transform 0.1s ease-out; 
+        }
+        button {
+            padding: 15px 30px;
+            font-size: 18px;
+            background-color: #2d094b;
+            color: rgb(66, 44, 44);
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Liquor Compass 🍻</h1>
+    <p id="status">Press start to find the nearest liquor store.</p>
+    
+    <button id="startBtn">Find Liquor</button>
+
+    <div id="compass-container">
+        <div id="arrow">⬆️</div>
+        <p id="distance"></p>
+    </div>
+
+    <script>
+        const statusText = document.getElementById('status');
+        const startBtn = document.getElementById('startBtn');
+        const compassContainer = document.getElementById('compass-container');
+        const arrow = document.getElementById('arrow');
+        
+        let targetBearing = 0;
+
+        startBtn.addEventListener('click', async () => {
+            // 1. Request Compass Permissions (Required for iOS 13+)
+            if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                try {
+                    const permission = await DeviceOrientationEvent.requestPermission();
+                    if (permission !== 'granted') {
+                        statusText.innerText = "Compass permission denied.";
+                        return;
+                    }
+                } catch (error) {
+                    console.error(error);
+                }
+            }
+
+            startBtn.style.display = 'none';
+            statusText.innerText = "Locating you...";
+
+            // 2. Get User Location
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    const userLat = position.coords.latitude;
+                    const userLon = position.coords.longitude;
+                    statusText.innerText = "Searching for liquor stores...";
+                    findNearestStore(userLat, userLon);
+                },
+                (error) => {
+                    statusText.innerText = "Location access denied or failed.";
+                }
+            );
+        });
+
+        // 3. Find Nearest Store using Overpass API
+        async function findNearestStore(lat, lon) {
+            // Query OpenStreetMap for alcohol shops within a 5km radius
+            const query = `
+                [out:json];
+                node(around:5000,${lat},${lon})["shop"="alcohol"];
+                out 1;
+            `;
+            const url = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`;
+
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+
+                if (data.elements && data.elements.length > 0) {
+                    const store = data.elements[0];
+                    statusText.innerText = `Found: ${store.tags.name || 'Unnamed Liquor Store'}`;
+                    compassContainer.style.display = 'block';
+                    
+                    // Calculate the bearing to the store
+                    targetBearing = calculateBearing(lat, lon, store.lat, store.lon);
+                    startCompass();
+                } else {
+                    statusText.innerText = "No liquor stores found within 5km.";
+                }
+            } catch (error) {
+                statusText.innerText = "Error fetching data.";
+            }
+        }
+
+        // 4. Calculate Bearing (The Math)
+        function calculateBearing(startLat, startLng, destLat, destLng) {
+            const toRadians = (deg) => deg * (Math.PI / 180);
+            const toDegrees = (rad) => rad * (180 / Math.PI);
+
+            const phi1 = toRadians(startLat);
+            const phi2 = toRadians(destLat);
+            const deltaLambda = toRadians(destLng - startLng);
+
+            const y = Math.sin(deltaLambda) * Math.cos(phi2);
+            const x = Math.cos(phi1) * Math.sin(phi2) - Math.sin(phi1) * Math.cos(phi2) * Math.cos(deltaLambda);
+            let bearing = toDegrees(Math.atan2(y, x));
+            
+            return (bearing + 360) % 360; // Normalize to 0-360
+        }
+
+        // 5. Run the Compass
+        function startCompass() {
+            window.addEventListener('deviceorientationabsolute', handleOrientation, true);
+            // Fallback for iOS
+            window.addEventListener('deviceorientation', handleOrientation, true);
+        }
+
+        function handleOrientation(event) {
+            let userHeading = 0;
+
+            // iOS uses webkitCompassHeading, Android uses absolute alpha
+            if (event.webkitCompassHeading) {
+                userHeading = event.webkitCompassHeading;
+            } else if (event.absolute && event.alpha !== null) {
+                userHeading = 360 - event.alpha;
+            }
+
+            // Calculate the difference between where the store is and where the user is looking
+            let pointerAngle = targetBearing - userHeading;
+            
+            // Rotate the arrow
+            arrow.style.transform = `rotate(${pointerAngle}deg)`;
+        }
+    </script>
+</body>
+</html>
