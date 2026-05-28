@@ -28,11 +28,15 @@
         button {
             padding: 15px 30px;
             font-size: 18px;
-            background-color: #2d094b;
-            color: rgb(66, 44, 44);
+            background-color: #4a148c;
+            color: white;
             border: none;
             border-radius: 8px;
             cursor: pointer;
+        }
+        #distance {
+            color: #ccc;
+            margin-top: 10px;
         }
     </style>
 </head>
@@ -53,6 +57,7 @@
         const startBtn = document.getElementById('startBtn');
         const compassContainer = document.getElementById('compass-container');
         const arrow = document.getElementById('arrow');
+        const distanceText = document.getElementById('distance');
         
         let targetBearing = 0;
 
@@ -90,10 +95,11 @@
         // 3. Find Nearest Store using Overpass API
         async function findNearestStore(lat, lon) {
             // Query OpenStreetMap for alcohol shops within a 5km radius
+            // Using nwr (node, way, relation) to find all mapped shops
             const query = `
                 [out:json];
-                node(around:5000,${lat},${lon})["shop"="alcohol"];
-                out 1;
+                nwr(around:5000,${lat},${lon})["shop"="alcohol"];
+                out center;
             `;
             const url = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`;
 
@@ -102,12 +108,29 @@
                 const data = await response.json();
 
                 if (data.elements && data.elements.length > 0) {
-                    const store = data.elements[0];
-                    statusText.innerText = `Found: ${store.tags.name || 'Unnamed Liquor Store'}`;
+                    // Calculate actual closest store from the results
+                    let closestStore = null;
+                    let minDistance = Infinity;
+
+                    data.elements.forEach(el => {
+                        const sLat = el.lat || (el.center && el.center.lat);
+                        const sLon = el.lon || (el.center && el.center.lon);
+                        if (sLat && sLon) {
+                            const d = calculateDistance(lat, lon, sLat, sLon);
+                            if (d < minDistance) {
+                                minDistance = d;
+                                closestStore = { ...el, lat: sLat, lon: sLon };
+                            }
+                        }
+                    });
+
+                    if (!closestStore) throw new Error("No coordinates");
+
+                    statusText.innerText = `Target: ${closestStore.tags.name || 'Liquor Store'}`;
+                    distanceText.innerText = `${(minDistance / 1000).toFixed(2)} km away`;
                     compassContainer.style.display = 'block';
                     
-                    // Calculate the bearing to the store
-                    targetBearing = calculateBearing(lat, lon, store.lat, store.lon);
+                    targetBearing = calculateBearing(lat, lon, closestStore.lat, closestStore.lon);
                     startCompass();
                 } else {
                     statusText.innerText = "No liquor stores found within 5km.";
@@ -115,6 +138,19 @@
             } catch (error) {
                 statusText.innerText = "Error fetching data.";
             }
+        }
+
+        // Haversine formula to find distance in meters
+        function calculateDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371e3; 
+            const p1 = lat1 * Math.PI/180;
+            const p2 = lat2 * Math.PI/180;
+            const dp = (lat2-lat1) * Math.PI/180;
+            const dl = (lon2-lon1) * Math.PI/180;
+            const a = Math.sin(dp/2) * Math.sin(dp/2) +
+                      Math.cos(p1) * Math.cos(p2) *
+                      Math.sin(dl/2) * Math.sin(dl/2);
+            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
         }
 
         // 4. Calculate Bearing (The Math)
@@ -135,9 +171,13 @@
 
         // 5. Run the Compass
         function startCompass() {
-            window.addEventListener('deviceorientationabsolute', handleOrientation, true);
-            // Fallback for iOS
-            window.addEventListener('deviceorientation', handleOrientation, true);
+            if ('ondeviceorientationabsolute' in window) {
+                window.addEventListener('deviceorientationabsolute', handleOrientation, true);
+            } else if ('ondeviceorientation' in window) {
+                window.addEventListener('deviceorientation', handleOrientation, true);
+            } else {
+                statusText.innerText = "Device orientation not supported.";
+            }
         }
 
         function handleOrientation(event) {
@@ -146,14 +186,12 @@
             // iOS uses webkitCompassHeading, Android uses absolute alpha
             if (event.webkitCompassHeading) {
                 userHeading = event.webkitCompassHeading;
-            } else if (event.absolute && event.alpha !== null) {
+            } else if (event.alpha !== null) {
+                // For Android, alpha is 0 when North, but increases counter-clockwise
                 userHeading = 360 - event.alpha;
             }
 
-            // Calculate the difference between where the store is and where the user is looking
             let pointerAngle = targetBearing - userHeading;
-            
-            // Rotate the arrow
             arrow.style.transform = `rotate(${pointerAngle}deg)`;
         }
     </script>
