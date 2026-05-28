@@ -60,6 +60,9 @@
         const distanceText = document.getElementById('distance');
         
         let targetBearing = 0;
+        let currentStore = null;
+        let smoothedUserHeading = null;
+        const SMOOTHING_FACTOR = 0.15; // Adjust (0.01 to 1.0) for more/less smoothing
 
         startBtn.addEventListener('click', async () => {
             // 1. Request Compass Permissions (Required for iOS 13+)
@@ -78,17 +81,23 @@
             startBtn.style.display = 'none';
             statusText.innerText = "Locating you...";
 
-            // 2. Get User Location
-            navigator.geolocation.getCurrentPosition(
+            // 2. Watch User Location (updates live as you walk)
+            navigator.geolocation.watchPosition(
                 (position) => {
                     const userLat = position.coords.latitude;
                     const userLon = position.coords.longitude;
-                    statusText.innerText = "Searching for liquor stores...";
-                    findNearestStore(userLat, userLon);
+
+                    if (!currentStore) {
+                        statusText.innerText = "Searching for liquor stores...";
+                        findNearestStore(userLat, userLon);
+                    } else {
+                        updateLiveTarget(userLat, userLon);
+                    }
                 },
                 (error) => {
-                    statusText.innerText = "Location access denied or failed.";
-                }
+                    statusText.innerText = "Location error: " + error.message;
+                },
+                { enableHighAccuracy: true, maximumAge: 0 }
             );
         });
 
@@ -126,18 +135,25 @@
 
                     if (!closestStore) throw new Error("No coordinates");
 
-                    statusText.innerText = `Target: ${closestStore.tags.name || 'Liquor Store'}`;
+                    currentStore = closestStore;
+                    statusText.innerText = `Target: ${currentStore.tags.name || 'Liquor Store'}`;
                     distanceText.innerText = `${(minDistance / 1000).toFixed(2)} km away`;
                     compassContainer.style.display = 'block';
                     
-                    targetBearing = calculateBearing(lat, lon, closestStore.lat, closestStore.lon);
+                    targetBearing = calculateBearing(lat, lon, currentStore.lat, currentStore.lon);
                     startCompass();
                 } else {
                     statusText.innerText = "No liquor stores found within 5km.";
                 }
             } catch (error) {
-                statusText.innerText = "Error fetching data.";
+                statusText.innerText = "Error fetching store data.";
             }
+        }
+
+        function updateLiveTarget(lat, lon) {
+            const dist = calculateDistance(lat, lon, currentStore.lat, currentStore.lon);
+            distanceText.innerText = `${(dist / 1000).toFixed(2)} km away`;
+            targetBearing = calculateBearing(lat, lon, currentStore.lat, currentStore.lon);
         }
 
         // Haversine formula to find distance in meters
@@ -182,16 +198,25 @@
 
         function handleOrientation(event) {
             let userHeading = 0;
-
             // iOS uses webkitCompassHeading, Android uses absolute alpha
             if (event.webkitCompassHeading) {
                 userHeading = event.webkitCompassHeading;
             } else if (event.alpha !== null) {
-                // For Android, alpha is 0 when North, but increases counter-clockwise
                 userHeading = 360 - event.alpha;
             }
 
-            let pointerAngle = targetBearing - userHeading;
+            // Smoothing logic (Exponential Moving Average)
+            if (smoothedUserHeading === null) {
+                smoothedUserHeading = userHeading;
+            } else {
+                let diff = userHeading - smoothedUserHeading;
+                // Handle the 360 -> 0 degree wrap-around
+                if (diff > 180) diff -= 360;
+                if (diff < -180) diff += 360;
+                smoothedUserHeading += diff * SMOOTHING_FACTOR;
+            }
+
+            let pointerAngle = targetBearing - smoothedUserHeading;
             arrow.style.transform = `rotate(${pointerAngle}deg)`;
         }
     </script>
