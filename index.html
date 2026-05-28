@@ -5,31 +5,93 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Liquor Compass</title>
     <style>
+        :root {
+            --primary: #ffc107;
+            --accent: #ff5252;
+            --bg: #0f0c29;
+            --glass: rgba(255, 255, 255, 0.1);
+        }
+
         body {
-            font-family: sans-serif;
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            height: 100vh;
+            min-height: 100vh;
             margin: 0;
-            background-color: #141436;
+            background: radial-gradient(circle at center, #302b63 0%, #0f0c29 100%);
+            color: white;
             text-align: center;
+            overflow: hidden;
         }
+
+        .app-card {
+            background: var(--glass);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 2rem;
+            border-radius: 24px;
+            box-shadow: 0 10px 32px rgba(0, 0, 0, 0.5);
+            width: 90%;
+            max-width: 360px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        h1 {
+            font-size: 1.8rem;
+            margin: 0 0 0.5rem 0;
+            letter-spacing: -0.5px;
+        }
+
+        #status {
+            font-size: 0.9rem;
+            color: #aaa;
+            margin-bottom: 1.5rem;
+            min-height: 2.4rem;
+        }
+
         #compass-container {
-            margin-top: 20px;
-            display: none; /* Hidden until we have data */
-        }
-        #arrow {
-            width: 60px;
-            height: 240px;
             position: relative;
+            width: 260px;
+            height: 260px;
+            margin: 1rem 0;
+            display: none; /* Hidden until we have data */
+            justify-content: center;
+            align-items: center;
+        }
+
+        .compass-dial {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+        }
+
+        .cardinal {
+            position: absolute;
+            font-weight: 800;
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.4);
+        }
+        .n { top: 10px; color: var(--accent); }
+        .e { right: 10px; }
+        .s { bottom: 10px; }
+        .w { left: 10px; }
+
+        #arrow {
+            width: 40px;
+            height: 180px;
+            position: relative;
+            z-index: 2;
             transition: transform 0.1s ease-out;
             filter: drop-shadow(0 10px 15px rgba(0,0,0,0.6));
-            display: flex;
-            align-items: center;
-            justify-content: center;
         }
+
         .needle {
             width: 100%;
             height: 100%;
@@ -55,35 +117,53 @@
             z-index: 2;
             top: 50%;
             left: 50%;
-            margin-top: -7px;
-            margin-left: -7px;
+            transform: translate(-50%, -50%);
         }
+
         button {
-            padding: 15px 30px;
-            font-size: 18px;
-            background-color: #4a148c;
+            padding: 16px 32px;
+            font-size: 1rem;
+            font-weight: bold;
+            background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%);
             color: white;
             border: none;
-            border-radius: 8px;
+            border-radius: 50px;
             cursor: pointer;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+            transition: transform 0.2s;
+            text-transform: uppercase;
+            letter-spacing: 1px;
         }
+
+        button:active { transform: scale(0.95); }
+
         #distance {
-            color: #ccc;
-            margin-top: 10px;
+            color: var(--primary);
+            font-size: 1.2rem;
+            font-weight: bold;
+            margin-top: 1.5rem;
         }
     </style>
 </head>
 <body>
 
-    <h1>Liquor Compass 🍻</h1>
-    <p id="status">Press start to find the nearest liquor store.</p>
-    
-    <button id="startBtn">Find Liquor</button>
+    <div class="app-card">
+        <h1>Liquor Compass 🍻</h1>
+        <p id="status">Press start to find the nearest liquor store.</p>
+        
+        <button id="startBtn">Find Liquor</button>
 
-    <div id="compass-container">
-        <div id="arrow">
-            <div class="needle"></div>
+        <div id="compass-container">
+            <div class="compass-dial"></div>
+            <div class="cardinal n">N</div>
+            <div class="cardinal e">E</div>
+            <div class="cardinal s">S</div>
+            <div class="cardinal w">W</div>
+            <div id="arrow">
+                <div class="needle"></div>
+            </div>
         </div>
+
         <p id="distance"></p>
     </div>
 
@@ -173,7 +253,7 @@
                     currentStore = closestStore;
                     statusText.innerText = `Target: ${currentStore.tags.name || 'Liquor Store'}`;
                     distanceText.innerText = `${(minDistance / 1000).toFixed(2)} km away`;
-                    compassContainer.style.display = 'block';
+                    compassContainer.style.display = 'flex';
                     
                     targetBearing = calculateBearing(lat, lon, currentStore.lat, currentStore.lon);
                     startCompass();
