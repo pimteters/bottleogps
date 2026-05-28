@@ -148,10 +148,10 @@
 <body>
 
     <div class="app-card">
-        <h1>Liquor Compass 🍻</h1>
-        <p id="status">Press start to find the nearest liquor store.</p>
+        <h1>BOTTLEO FINDER 🍻</h1>
+        <p id="status">Press start to find the nearest BOTTLEO.</p>
         
-        <button id="startBtn">Find Liquor</button>
+        <button id="startBtn">Find BOTTLEO</button>
 
         <div id="compass-container">
             <div class="compass-dial"></div>
@@ -251,14 +251,14 @@
                     if (!closestStore) throw new Error("No coordinates");
 
                     currentStore = closestStore;
-                    statusText.innerText = `Target: ${currentStore.tags.name || 'Liquor Store'}`;
+                    statusText.innerText = `Target: ${currentStore.tags.name || 'BOTTLEO'}`;
                     distanceText.innerText = `${(minDistance / 1000).toFixed(2)} km away`;
                     compassContainer.style.display = 'flex';
                     
                     targetBearing = calculateBearing(lat, lon, currentStore.lat, currentStore.lon);
                     startCompass();
                 } else {
-                    statusText.innerText = "No liquor stores found within 5km.";
+                    statusText.innerText = "No BOTTLEO found within 5km.";
                 }
             } catch (error) {
                 statusText.innerText = "Error fetching store data.";
