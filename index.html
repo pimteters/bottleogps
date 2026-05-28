@@ -145,6 +145,27 @@
 
         button:active { transform: scale(0.95); }
 
+        .selection-container {
+            display: none;
+            flex-direction: column;
+            gap: 12px;
+            width: 100%;
+            margin-top: 1rem;
+        }
+        .store-btn {
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: white;
+            padding: 16px;
+            border-radius: 16px;
+            text-align: left;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .store-btn:hover { background: rgba(255, 255, 255, 0.15); border-color: var(--primary); }
+        .store-btn .name { display: block; font-weight: bold; color: var(--primary); margin-bottom: 4px; }
+        .store-btn .dist { font-size: 0.8rem; color: #aaa; }
+
         #distance {
             color: var(--primary);
             font-size: 1.2rem;
@@ -160,6 +181,8 @@
         <p id="status">Press start to find the nearest BOTTLEO.</p>
         
         <button id="startBtn">Find BOTTLEO</button>
+
+        <div id="selection-container" class="selection-container"></div>
 
         <div id="compass-container">
             <div class="target-indicator"></div>
@@ -177,12 +200,14 @@
         const startBtn = document.getElementById('startBtn');
         const compassContainer = document.getElementById('compass-container');
         const arrow = document.getElementById('arrow');
+        const selectionContainer = document.getElementById('selection-container');
         const distanceText = document.getElementById('distance');
         
         let targetBearing = 0;
         let currentStore = null;
         let smoothedUserHeading = null;
         let lastVibrationTime = 0;
+        let isSearching = false;
         const SMOOTHING_FACTOR = 0.15; // Adjust (0.01 to 1.0) for more/less smoothing
 
         startBtn.addEventListener('click', async () => {
@@ -208,7 +233,8 @@
                     const userLat = position.coords.latitude;
                     const userLon = position.coords.longitude;
 
-                    if (!currentStore) {
+                    if (!currentStore && !isSearching) {
+                        isSearching = true;
                         statusText.innerText = "Searching for liquor stores...";
                         findNearestStore(userLat, userLon);
                     } else {
@@ -238,37 +264,60 @@
                 const data = await response.json();
 
                 if (data.elements && data.elements.length > 0) {
-                    // Calculate actual closest store from the results
-                    let closestStore = null;
-                    let minDistance = Infinity;
-
+                    let stores = [];
                     data.elements.forEach(el => {
                         const sLat = el.lat || (el.center && el.center.lat);
                         const sLon = el.lon || (el.center && el.center.lon);
                         if (sLat && sLon) {
-                            const d = calculateDistance(lat, lon, sLat, sLon);
-                            if (d < minDistance) {
-                                minDistance = d;
-                                closestStore = { ...el, lat: sLat, lon: sLon };
-                            }
+                            stores.push({
+                                ...el,
+                                lat: sLat,
+                                lon: sLon,
+                                distance: calculateDistance(lat, lon, sLat, sLon)
+                            });
                         }
                     });
 
-                    if (!closestStore) throw new Error("No coordinates");
+                    // Sort by distance and pick top 2
+                    stores.sort((a, b) => a.distance - b.distance);
+                    const topTwo = stores.slice(0, 2);
 
-                    currentStore = closestStore;
-                    statusText.innerText = `Target: ${currentStore.tags.name || 'BOTTLEO'}`;
-                    distanceText.innerText = `${(minDistance / 1000).toFixed(2)} km away`;
-                    compassContainer.style.display = 'flex';
+                    if (topTwo.length === 0) throw new Error("No usable coordinates");
                     
-                    targetBearing = calculateBearing(lat, lon, currentStore.lat, currentStore.lon);
-                    startCompass();
+                    displayStoreOptions(topTwo, lat, lon);
                 } else {
                     statusText.innerText = "No BOTTLEO found within 5km.";
+                    isSearching = false;
                 }
             } catch (error) {
                 statusText.innerText = "Error fetching store data.";
+                isSearching = false;
             }
+        }
+
+        function displayStoreOptions(stores, userLat, userLon) {
+            statusText.innerText = "Select your destination:";
+            selectionContainer.style.display = 'flex';
+            selectionContainer.innerHTML = '';
+
+            stores.forEach(store => {
+                const btn = document.createElement('div');
+                btn.className = 'store-btn';
+                btn.innerHTML = `
+                    <span class="name">${store.tags.name || 'BOTTLEO'}</span>
+                    <span class="dist">${(store.distance / 1000).toFixed(2)} km away</span>
+                `;
+                btn.onclick = () => {
+                    currentStore = store;
+                    selectionContainer.style.display = 'none';
+                    statusText.innerText = `Target: ${currentStore.tags.name || 'BOTTLEO'}`;
+                    distanceText.innerText = `${(store.distance / 1000).toFixed(2)} km away`;
+                    compassContainer.style.display = 'flex';
+                    targetBearing = calculateBearing(userLat, userLon, currentStore.lat, currentStore.lon);
+                    startCompass();
+                };
+                selectionContainer.appendChild(btn);
+            });
         }
 
         function updateLiveTarget(lat, lon) {
