@@ -20,10 +20,43 @@
             margin-top: 20px;
             display: none; /* Hidden until we have data */
         }
-        /* The arrow we will rotate */
         #arrow {
-            font-size: 100px;
-            transition: transform 0.1s ease-out; 
+            width: 60px;
+            height: 240px;
+            position: relative;
+            transition: transform 0.1s ease-out;
+            filter: drop-shadow(0 10px 15px rgba(0,0,0,0.6));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .needle {
+            width: 100%;
+            height: 100%;
+            background: conic-gradient(
+                from 0deg,
+                #b71c1c 0deg 90deg,   /* Dark Red (Right facet) */
+                #757575 90deg 180deg,  /* Dark Grey (Right facet) */
+                #e0e0e0 180deg 270deg, /* Light Grey (Left facet) */
+                #ff5252 270deg 360deg  /* Light Red (Left facet) */
+            );
+            /* Shapes the rectangle into a diamond */
+            clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+        }
+        /* The center pin/hub */
+        #arrow::after {
+            content: '';
+            position: absolute;
+            width: 14px;
+            height: 14px;
+            background: #222;
+            border-radius: 50%;
+            box-shadow: inset 0 2px 4px rgba(255,255,255,0.4);
+            z-index: 2;
+            top: 50%;
+            left: 50%;
+            margin-top: -7px;
+            margin-left: -7px;
         }
         button {
             padding: 15px 30px;
@@ -48,7 +81,9 @@
     <button id="startBtn">Find Liquor</button>
 
     <div id="compass-container">
-        <div id="arrow">⬆️</div>
+        <div id="arrow">
+            <div class="needle"></div>
+        </div>
         <p id="distance"></p>
     </div>
 
